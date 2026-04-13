@@ -1,0 +1,8 @@
+# Environment variables — never commit this!
+.env
+venv/
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+.vscode/

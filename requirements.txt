@@ -1,0 +1,7 @@
+python-dotenv
+sentence-transformers
+pinecone
+groq
+pymupdf
+pytesseract
+pillow
