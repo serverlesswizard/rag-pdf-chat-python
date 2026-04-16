@@ -5,3 +5,5 @@ groq
 pymupdf
 pytesseract
 pillow
+streamlit
+torchvision
