@@ -1,9 +1,8 @@
-python-dotenv
-sentence-transformers
-pinecone
-groq
-pymupdf
-pytesseract
-pillow
-streamlit
-torchvision
+streamlit>=1.32.0
+chromadb>=1.0.0
+sentence-transformers>=3.0.0
+groq>=0.9.0
+pymupdf>=1.24.0
+python-dotenv>=1.0.0
+pytesseract>=0.3.10
+pillow>=10.0.0

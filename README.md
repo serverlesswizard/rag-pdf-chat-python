@@ -9,7 +9,7 @@ Chat with your PDF documents using a RAG (Retrieval-Augmented Generation) pipeli
 - 📄 Ingest any PDF — text-based or scanned
 - 🔍 OCR support for scanned/image-based PDFs via Tesseract
 - ⚡ Fast responses powered by Groq (Llama 3.3 70B)
-- 🧠 Semantic search via Pinecone vector store
+- 🧠 Semantic search via ChromaDB vector store
 - 💬 Continuous chat loop — ask as many questions as you want
 - 🔒 Secure API key management via `.env`
 
@@ -35,7 +35,7 @@ rag-pdf-chat/
 | Component | Tool |
 |-----------|------|
 | LLM | [Groq](https://console.groq.com) — Llama 3.3 70B |
-| Vector Store | [Pinecone](https://app.pinecone.io) |
+| Vector Store | [ChromaDB](https://www.trychroma.com/) |
 | Embeddings | `all-MiniLM-L6-v2` via sentence-transformers |
 | PDF Parsing | PyMuPDF (`fitz`) |
 | OCR (scanned PDFs) | Tesseract + pytesseract |
@@ -63,6 +63,10 @@ venv\Scripts\activate
 python -m venv venv
 venv\Scripts\Activate.ps1
 ```
+**Linux (Terminal)**
+```terminal
+python -m venv venv
+source venv/bin/activate
 
 ### 3. Install dependencies
 ```bash
@@ -80,14 +84,12 @@ cp .env.example .env
 ```
 
 ```env
-PINECONE_API_KEY=your-pinecone-api-key
 GROQ_API_KEY=your-groq-api-key
 TESSERACT_CMD=C:\Program Files\Tesseract-OCR\tesseract.exe
 ```
 
 | Key | Where to get it |
 |-----|----------------|
-| `PINECONE_API_KEY` | https://app.pinecone.io → API Keys |
 | `GROQ_API_KEY` | https://console.groq.com/keys |
 | `TESSERACT_CMD` | Path to Tesseract install (Windows only) |
 
@@ -140,13 +142,14 @@ You: exit
 ## 📦 Dependencies
 
 ```
-python-dotenv
-sentence-transformers
-pinecone
-groq
-pymupdf
-pytesseract
-pillow
+streamlit>=1.32.0
+chromadb>=1.0.0
+sentence-transformers>=3.0.0
+groq>=0.9.0
+pymupdf>=1.24.0
+python-dotenv>=1.0.0
+pytesseract>=0.3.10
+pillow>=10.0.0
 ```
 
 ---
@@ -161,7 +164,3 @@ pillow
 | `tesseract is not recognized` | Set `TESSERACT_CMD` in `.env` with the full path |
 
 ---
-
-## 📄 License
-
-MIT License — feel free to use and modify.

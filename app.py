@@ -1,71 +1,99 @@
 import streamlit as st
-import os
+import re
 from rag_pipeline import RAGPipeline
 
 # ─────────────────────────────
-# CONFIG
+# PAGE CONFIG
 # ─────────────────────────────
-st.set_page_config(page_title="IT Policy", layout="wide")
-st.title("📄IT Policy Assistant")
+st.set_page_config(
+    page_title="IT Policy Assistant",
+    page_icon="🛡️",
+    layout="centered",
+)
 
 # ─────────────────────────────
-# SESSION STATE INIT
+# SECURITY — sanitize LLM output
 # ─────────────────────────────
-if "messages" not in st.session_state:
-    st.session_state.messages = []
+_CREDENTIAL_VALUE = re.compile(
+    r"""
+    (?:
+        (?:password|passwd|pwd|secret|api[_-]?key|token|auth|credential
+           |private[_-]?key|access[_-]?key|client[_-]?secret|bearer
+           |passphrase|pin|ssn|cvv)
+        \s*[=:]\s*\S+
+    )
+    |(?:sk-|gsk_|pcsk_|Bearer\s|ghp_|xox[baprs]-)[A-Za-z0-9_\-]{8,}
+    |(?:Bearer|Basic)\s+\S+
+    """,
+    re.IGNORECASE | re.VERBOSE,
+)
+
+_INLINE_CREDENTIAL = re.compile(
+    r"""
+    (?:
+        (?:default\s+)?(?:password|passwd|pwd)\s*(?:is|:|\=)\s*\S+
+        |(?:username|user)\s*(?:is|:|\=)\s*\S+\s+(?:and\s+)?(?:password|passwd)\s*(?:is|:|\=)\s*\S+
+        |api\s*key\s*(?:is|:|\=)\s*\S+
+        |token\s*(?:is|:|\=)\s*\S+
+    )
+    """,
+    re.IGNORECASE | re.VERBOSE,
+)
+
+def sanitize_content(text: str) -> str:
+    text = _CREDENTIAL_VALUE.sub("[REDACTED]", text)
+    text = _INLINE_CREDENTIAL.sub("[REDACTED]", text)
+    return text
+
 
 # ─────────────────────────────
 # LOAD PIPELINE (CACHED)
 # ─────────────────────────────
-@st.cache_resource
+@st.cache_resource(show_spinner=False)
 def load_pipeline():
     return RAGPipeline()
 
 rag = load_pipeline()
 
 # ─────────────────────────────
-# SIDEBAR
+# SESSION STATE
 # ─────────────────────────────
-st.sidebar.header("⚙️ Controls")
-
-debug_mode = st.sidebar.toggle("🧪 Debug Mode", value=False)
-clear_db   = st.sidebar.checkbox("🗑️ Clear DB before ingest")
-
-uploaded_file = st.sidebar.file_uploader("📂 Upload PDF", type=["pdf"])
-
-# ── Ingest ──
-if st.sidebar.button("🚀 Ingest PDF"):
-    if uploaded_file:
-        file_path = f"temp_{uploaded_file.name}"
-        try:
-            with open(file_path, "wb") as f:
-                f.write(uploaded_file.read())
-
-            with st.spinner("⏳ Ingesting..."):
-                rag.ingest(file_path, clear_existing=clear_db)
-                count = rag.store.verify()
-                st.sidebar.success(f"✅ Ingested | Vectors: {count}")
-
-        except Exception as e:
-            st.sidebar.error(f"❌ Ingest failed: {e}")
-        finally:
-            if os.path.exists(file_path):
-                os.remove(file_path)
-    else:
-        st.sidebar.warning("⚠️ Upload a PDF first.")
-
-# ── DB Stats ──
-if st.sidebar.button("📊 DB Stats"):
-    try:
-        count = rag.store.verify()
-        st.sidebar.info(f"Total vectors: {count}")
-    except Exception as e:
-        st.sidebar.error(f"❌ Could not fetch stats: {e}")
-
-# ── Reset Chat ──
-if st.sidebar.button("🔄 Reset Chat"):
+if "messages" not in st.session_state:
     st.session_state.messages = []
-    st.rerun()
+
+# ─────────────────────────────
+# SIDEBAR — minimal
+# ─────────────────────────────
+with st.sidebar:
+    st.markdown("### 🛡️ IT Policy Assistant")
+    st.markdown("Ask questions about your organization's IT policies.")
+    st.divider()
+
+    # DB stats — read only, no config
+    try:
+        count   = rag.store.verify()
+        sources = rag.store.list_sources()
+        st.metric("Indexed Documents", len(sources))
+        st.metric("Total Vectors", count)
+        if sources:
+            st.markdown("**Documents:**")
+            for s in sources:
+                st.markdown(f"- 📄 {s}")
+    except Exception:
+        pass
+
+    st.divider()
+    if st.button("🔄 Reset Chat"):
+        st.session_state.messages = []
+        st.rerun()
+
+
+# ─────────────────────────────
+# HEADER
+# ─────────────────────────────
+st.markdown("## 🛡️ IT Policy Assistant")
+st.markdown("Ask me anything about your organization's IT policies.")
+st.divider()
 
 # ─────────────────────────────
 # DISPLAY CHAT HISTORY
@@ -77,7 +105,7 @@ for msg in st.session_state.messages:
 # ─────────────────────────────
 # CHAT INPUT
 # ─────────────────────────────
-prompt = st.chat_input("Ask something about your PDF...")
+prompt = st.chat_input("Ask about IT policies...")
 
 if prompt:
     st.session_state.messages.append({"role": "user", "content": prompt})
@@ -87,24 +115,20 @@ if prompt:
     answer = None
 
     with st.chat_message("assistant"):
-        with st.spinner("🤖 Thinking..."):
+        with st.spinner("Thinking..."):
             try:
-                # Build history from session (exclude current user message)
                 history = [
                     {"role": m["role"], "content": m["content"]}
                     for m in st.session_state.messages[:-1]
                 ]
 
-                # FIX: Use pipeline's query_with_history — no duplicated
-                # embed/retrieve logic in app.py; chunks returned for citations
                 answer, chunks = rag.query_with_history(prompt, history=history)
+                answer = sanitize_content(answer)
 
                 if not chunks:
                     st.warning(answer)
                 else:
                     st.markdown(answer)
-
-                    # ── Source Citations ──
                     with st.expander("📚 Sources"):
                         for i, c in enumerate(chunks, 1):
                             score = round(float(c.get("score", 0)), 4)
@@ -112,18 +136,8 @@ if prompt:
                             src   = c.get("source", "unknown")
                             st.markdown(f"**{i}. {src} | Page {page} | Score: {score}**")
 
-                    # ── Debug Mode ──
-                    if debug_mode:
-                        with st.expander("🧪 Debug: Retrieved Chunks"):
-                            for i, c in enumerate(chunks, 1):
-                                st.markdown(f"### Chunk {i}")
-                                st.markdown(f"**Source:** {c.get('source', 'N/A')}")
-                                st.markdown(f"**Page:** {c.get('page', 'N/A')}")
-                                st.markdown(f"**Score:** {c.get('score', 'N/A')}")
-                                st.text(c.get("text", "")[:1000])
-
             except Exception as e:
-                answer = f"❌ Unexpected error: {e}"
+                answer = "❌ Something went wrong. Please try again."
                 st.error(answer)
 
     if answer is not None:
