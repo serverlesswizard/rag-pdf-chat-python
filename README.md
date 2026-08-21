@@ -1,6 +1,6 @@
 # 🧠 rag-pdf-chat
 
-Chat with your PDF documents using a RAG (Retrieval-Augmented Generation) pipeline powered by **Groq LLM**, **Pinecone** vector store, and **sentence-transformers** for embeddings.
+Chat with your PDF documents using a RAG (Retrieval-Augmented Generation) pipeline powered by **Ollama (Qwen2.5 1.5B)** for fully local LLM inference, **ChromaDB** vector store, and **Hugging Face BGE embeddings** — with a clean **Streamlit** web interface.
 
 ---
 
@@ -8,10 +8,13 @@ Chat with your PDF documents using a RAG (Retrieval-Augmented Generation) pipeli
 
 - 📄 Ingest any PDF — text-based or scanned
 - 🔍 OCR support for scanned/image-based PDFs via Tesseract
-- ⚡ Fast responses powered by Groq (Llama 3.3 70B)
+- 🦙 Fully local LLM inference via Ollama (Qwen2.5 1.5B) — no external API needed
 - 🧠 Semantic search via ChromaDB vector store
-- 💬 Continuous chat loop — ask as many questions as you want
-- 🔒 Secure API key management via `.env`
+- 🔢 High-quality BGE embeddings (`BAAI/bge-base-en-v1.5`)
+- 🌐 Simple interactive Streamlit web interface
+- 💬 Natural language question answering
+- 🗂️ Persistent vector storage — ingest once, query anytime
+- 🔒 Data privacy — everything runs locally on your machine
 
 ---
 
@@ -20,11 +23,13 @@ Chat with your PDF documents using a RAG (Retrieval-Augmented Generation) pipeli
 ```
 rag-pdf-chat/
 │
-├── rag_pipeline.py      # Main RAG pipeline
+├── app.py               # Streamlit web interface
+├── rag_pipeline.py      # Core RAG pipeline logic
 ├── requirements.txt     # Python dependencies
-├── .env                 # Your API keys (never commit this)
+├── .env                 # Your config (never commit this)
 ├── .env.example         # Safe template to share
 ├── .gitignore           # Ignores .env and cache files
+├── chroma_db/           # Persistent vector store (auto-created)
 └── README.md            # You are here
 ```
 
@@ -33,11 +38,12 @@ rag-pdf-chat/
 ## ⚙️ Tech Stack
 
 | Component | Tool |
-|-----------|------|
-| LLM | [Groq](https://console.groq.com) — Llama 3.3 70B |
+|---|---|
+| LLM | [Ollama](https://ollama.com) — Qwen2.5 1.5B (runs locally) |
 | Vector Store | [ChromaDB](https://www.trychroma.com/) |
-| Embeddings | `all-MiniLM-L6-v2` via sentence-transformers |
+| Embeddings | `BAAI/bge-base-en-v1.5` via Hugging Face |
 | PDF Parsing | PyMuPDF (`fitz`) |
+| Web UI | Streamlit |
 | OCR (scanned PDFs) | Tesseract + pytesseract |
 
 ---
@@ -46,14 +52,28 @@ rag-pdf-chat/
 
 ### 1. Clone the repo
 ```bash
-git clone https://github.com/your-username/rag-pdf-chat.git
+git clone https://github.com/serverlesswizard/rag-pdf-chat.git
 cd rag-pdf-chat
 ```
 
-### 2. Create and activate a virtual environment
+### 2. Install and set up Ollama
+
+Download and install Ollama from 👉 https://ollama.com/download
+
+Then pull the Qwen2.5 model:
+```bash
+ollama pull qwen2.5:1.5b
+```
+
+Verify it works:
+```bash
+ollama run qwen2.5:1.5b "Hello!"
+```
+
+### 3. Create and activate a virtual environment
 
 **Windows (Command Prompt):**
-```bash
+```cmd
 python -m venv venv
 venv\Scripts\activate
 ```
@@ -61,58 +81,90 @@ venv\Scripts\activate
 **Windows (PowerShell):**
 ```powershell
 python -m venv venv
-venv\Scripts\Activate.ps1
+.\venv\Scripts\Activate.ps1
 ```
-**Linux (Terminal)**
-```terminal
-python -m venv venv
-source venv/bin/activate
 
-### 3. Install dependencies
+**Linux / macOS:**
 ```bash
+python3 -m venv venv
+source venv/bin/activate
+```
+
+### 4. Install dependencies
+```bash
+pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-### 4. Install Tesseract (for scanned PDFs only)
-Download and install from:
-👉 https://github.com/UB-Mannheim/tesseract/wiki
+### 5. Install Tesseract (for scanned PDFs only)
 
-### 5. Set up your `.env` file
-Copy the example and fill in your keys:
+**Windows:** Download and install from 👉 https://github.com/UB-Mannheim/tesseract/wiki
+
+**Linux:**
+```bash
+sudo apt update && sudo apt install tesseract-ocr
+```
+
+Verify:
+```bash
+tesseract --version
+```
+
+### 6. Set up your `.env` file
 ```bash
 cp .env.example .env
 ```
 
+Fill in your config:
 ```env
-GROQ_API_KEY=your-groq-api-key
-TESSERACT_CMD=C:\Program Files\Tesseract-OCR\tesseract.exe
+TESSERACT_CMD=C:\Program Files\Tesseract-OCR\tesseract.exe   # Windows only
+HF_TOKEN=your-huggingface-token                               # Optional but recommended
 ```
 
 | Key | Where to get it |
-|-----|----------------|
-| `GROQ_API_KEY` | https://console.groq.com/keys |
-| `TESSERACT_CMD` | Path to Tesseract install (Windows only) |
+|---|---|
+| `TESSERACT_CMD` | Full path to Tesseract install (Windows only) |
+| `HF_TOKEN` | https://huggingface.co/settings/tokens |
+
+> No API keys needed for the LLM — Ollama runs completely locally!
+
+---
+
+## ▶️ Running the App
+
+Make sure Ollama is running in the background, then:
+
+```bash
+streamlit run app.py
+```
+
+Open the URL shown in your terminal (usually `http://localhost:8501`) and start chatting with your PDFs.
 
 ---
 
 ## 💬 Usage
 
-### Ingest a PDF and start chatting
-```bash
-python rag_pipeline.py path/to/your/document.pdf
-```
+**Step 1 — Upload a PDF** through the Streamlit sidebar.
 
-### Just chat (PDF already ingested before)
-```bash
-python rag_pipeline.py
+**Step 2 — Wait for processing.** The app extracts text, chunks it, generates BGE embeddings, and stores them in ChromaDB.
+
+**Step 3 — Ask questions** in natural language:
+
+```
+What is this document about?
+Summarize the key findings.
+What are the important dates mentioned?
+Who are the stakeholders involved?
+What solutions are proposed?
 ```
 
 ### Example session
 ```
-📄 Ingesting: posh-policy.pdf
-   🔍 OCR applied on page 1
-   → 42 chunks created across 10 pages
-   ✅ Ingestion complete.
+📄 Ingesting: Posh-Policy.pdf
+   → Extracted text from 10 page(s)
+   → 42 chunks from 10 pages
+   → Embedding 42 chunks with BAAI/bge-base-en-v1.5...
+   ✅ Ingestion complete. 42 vectors stored in ChromaDB.
 
 💬 Chat started. Type 'exit' or 'quit' to stop.
 
@@ -128,14 +180,24 @@ You: exit
 👋 Exiting.
 ```
 
-> 💡 You only need to ingest a PDF **once**. The data is stored in Pinecone and can be queried anytime without re-ingesting.
+> 💡 You only need to ingest a PDF **once**. The data persists in ChromaDB between sessions — no need to re-ingest unless the document changes.
 
 ---
 
-## 🔒 Security
+## 🎛️ RAG Parameters
 
-- Never commit your `.env` file — it's listed in `.gitignore`
-- Use `.env.example` as a safe template to share with others
+These can be tuned in `rag_pipeline.py`:
+
+| Parameter | Default | Description |
+|---|---|---|
+| `CHUNK_SIZE` | `1000` | Characters per chunk |
+| `CHUNK_OVERLAP` | `150` | Overlap between chunks |
+| `TOP_K` | `8` | Chunks retrieved per query |
+| `MIN_CHUNK_LEN` | `40` | Minimum chunk length to keep |
+| `MAX_CONTEXT_CHARS` | `14000` | Max characters sent to LLM |
+| `EMBEDDING_MODEL` | `BAAI/bge-base-en-v1.5` | Hugging Face embedding model |
+| `LLM_MODEL` | `qwen2.5:1.5b` | Ollama model name |
+| `COLLECTION_NAME` | `pdf_rag` | ChromaDB collection name |
 
 ---
 
@@ -145,7 +207,7 @@ You: exit
 streamlit>=1.32.0
 chromadb>=1.0.0
 sentence-transformers>=3.0.0
-groq>=0.9.0
+ollama>=0.1.0
 pymupdf>=1.24.0
 python-dotenv>=1.0.0
 pytesseract>=0.3.10
@@ -157,10 +219,41 @@ pillow>=10.0.0
 ## 🛠️ Troubleshooting
 
 | Problem | Fix |
-|---------|-----|
+|---|---|
 | `0 chunks created` | PDF is scanned — install Tesseract OCR |
-| `cannot import name 'Pinecone'` | Run `pip uninstall pinecone pinecone-client -y && pip install pinecone` |
-| `GROQ_API_KEY is missing` | Add your Groq key to `.env` |
 | `tesseract is not recognized` | Set `TESSERACT_CMD` in `.env` with the full path |
+| `File not found` error | Wrap the path in double quotes: `"C:\Users\Name\file.pdf"` |
+| Ollama connection error | Make sure Ollama is running: `ollama serve` |
+| `model not found` error | Run `ollama pull qwen2.5:1.5b` to download the model |
+| Broken virtual environment | Delete with `rd /s /q venv`, recreate with `python -m venv venv` |
+| HuggingFace rate limit warning | Set `HF_TOKEN` in `.env` |
+| ChromaDB corrupted / stale data | Delete `chroma_db/` folder and re-ingest |
+| Streamlit not found | Make sure venv is activated, then `pip install -r requirements.txt` |
+
+**Reset ChromaDB:**
+```cmd
+rd /s /q chroma_db
+```
+Then restart the app and re-ingest your documents.
 
 ---
+
+## 🔒 Security & Privacy
+
+- Everything runs **locally** — your documents never leave your machine
+- No external LLM API calls — Ollama handles inference on-device
+- Never commit your `.env` file — it's listed in `.gitignore`
+- Use `.env.example` as a safe template to share with others
+
+---
+
+## 👨‍💻 Author
+
+**Vishal Anand** — Cloud / DevOps Engineer
+
+[![GitHub](https://img.shields.io/badge/GitHub-serverlesswizard-181717?style=flat&logo=github)](https://github.com/serverlesswizard)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-vishalanand25-0A66C2?style=flat&logo=linkedin)](https://linkedin.com/in/vishalanand25)
+
+---
+
+> ⭐ If you found this project useful, consider giving it a star on GitHub!
